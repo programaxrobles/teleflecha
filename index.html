@@ -35,6 +35,11 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-
 textarea{flex:1;min-height:240px;width:100%;resize:none;background:var(--panel);color:var(--ink);
   border:1px solid var(--line);border-radius:24px;padding:18px;font:inherit;font-size:18px;line-height:1.5;outline:none}
 textarea:focus{border-color:var(--acc)}
+.done{display:none;background:var(--acc);color:var(--acc-ink);border-radius:999px;padding:9px 18px;font-weight:800;font-size:15px}
+#editor.typing{position:fixed;left:0;right:0;top:0;height:var(--vvh,100%);min-height:0;overflow:hidden}
+#editor.typing .card,#editor.typing .go,#editor.typing .stats{display:none}
+#editor.typing .done{display:block}
+#editor.typing textarea{min-height:0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .lbl{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
@@ -103,13 +108,11 @@ textarea:focus{border-color:var(--acc)}
   font-size:12px;pointer-events:none;transition:opacity .4s}
 #prompter:not(.playing) .tap-hint{opacity:0}
 svg{display:block}
-@media (orientation:landscape) and (max-height:560px){
-  #editor{display:grid;grid-template-columns:1.4fr 1fr;grid-template-rows:auto 1fr auto;padding-left:calc(16px + env(safe-area-inset-left,0px));padding-right:calc(16px + env(safe-area-inset-right,0px))}
-  #editor .top{grid-column:1/3}
-  #editor textarea{grid-row:2/4;min-height:0}
-  #editor .card{padding:10px 14px;gap:8px}
-  #editor .big{font-size:26px}
-}
+body.land #editor:not(.typing){display:grid;grid-template-columns:1.4fr 1fr;grid-template-rows:auto 1fr auto;padding-left:calc(16px + env(safe-area-inset-left,0px));padding-right:calc(16px + env(safe-area-inset-right,0px))}
+body.land #editor:not(.typing) .top{grid-column:1/3}
+body.land #editor:not(.typing) textarea{grid-row:2/4;min-height:0}
+body.land #editor .card{padding:10px 14px;gap:8px}
+body.land #editor .big{font-size:26px}
 </style>
 </head>
 <body>
@@ -118,6 +121,7 @@ svg{display:block}
 <section id="editor">
   <div class="top">
     <div class="brand"><svg class="logo" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A95FF"/><stop offset="1" stop-color="#2F6BFF"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="#000"/><g fill="url(#lg)"><rect x="41" y="18" width="18" height="9" rx="4.5"/><rect x="32" y="32" width="36" height="9" rx="4.5"/><rect x="23" y="46" width="54" height="9" rx="4.5"/><rect x="41" y="60" width="18" height="9" rx="4.5" opacity=".65"/><rect x="41" y="74" width="18" height="9" rx="4.5" opacity=".35"/></g></svg>Teleflecha</div>
+    <button class="done" id="done">Listo</button>
     <div class="stats"><div class="stat"><b id="words">0</b> pal.</div><div class="stat">≈ <b id="mins">0:00</b></div></div>
   </div>
 
@@ -210,14 +214,42 @@ svg{display:block}
     prompter.classList.toggle('mirror', s.mirror);
     $('guide').classList.toggle('hidden', !s.guide);
     text.style.fontSize = s.size + 'px';
+    countWords();
+    save();
+  }
+  function countWords() {
     const w = (s.text.trim().match(/\S+/g) || []).length;
     $('words').textContent = w;
     $('mins').textContent = fmt(w / 150 * 60);
-    save();
   }
   const fmt = sec => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
 
-  ta.addEventListener('input', () => { s.text = ta.value; refresh(); });
+  ta.addEventListener('input', () => { s.text = ta.value; save(); countWords(); });
+
+  // ---- modo escritura: en iPhone el teclado no trae botón para cerrarse y tapa los controles.
+  const vv = window.visualViewport;
+  function fitToKeyboard() {
+    if (!editor.classList.contains('typing')) return;
+    editor.style.setProperty('--vvh', (vv ? vv.height : innerHeight) + 'px');
+    window.scrollTo(0, 0);
+  }
+  ta.addEventListener('focus', () => { editor.classList.add('typing'); fitToKeyboard(); setTimeout(fitToKeyboard, 350); });
+  ta.addEventListener('blur', () => { editor.classList.remove('typing'); editor.style.removeProperty('--vvh'); window.scrollTo(0, 0); });
+  if (vv) { vv.addEventListener('resize', fitToKeyboard); vv.addEventListener('scroll', fitToKeyboard); }
+  $('done').addEventListener('pointerdown', e => e.preventDefault());
+  $('done').onclick = () => ta.blur();
+  // tocar fuera del texto también cierra el teclado
+  editor.addEventListener('pointerdown', e => { if (document.activeElement === ta && !e.target.closest('textarea')) ta.blur(); });
+
+  // ---- horizontal según el giro real del móvil (no según el hueco que deja el teclado)
+  function setLand() {
+    const t = screen.orientation && screen.orientation.type;
+    const land = t ? t.startsWith('landscape') : Math.abs(window.orientation || 0) === 90;
+    document.body.classList.toggle('land', land && Math.min(screen.width, screen.height) < 560);
+  }
+  setLand();
+  if (screen.orientation) screen.orientation.addEventListener('change', setLand);
+  addEventListener('orientationchange', setLand);
 
   // ---- acciones compartidas (tamaño / velocidad)
   function act(a) {
@@ -354,7 +386,7 @@ svg{display:block}
 
   // ---- abrir / cerrar
   $('start').onclick = () => {
-    s.text = ta.value; refresh();
+    ta.blur(); s.text = ta.value; refresh();
     text.textContent = s.text || ' ';
     editor.classList.add('hidden'); prompter.classList.remove('hidden');
     goLandscape(); layout();
