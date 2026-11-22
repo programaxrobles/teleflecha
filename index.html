@@ -69,22 +69,19 @@ textarea:focus{border-color:var(--acc)}
 .guide::before,.guide::after{content:"";position:absolute;top:-9px;border:8px solid transparent}
 .guide::before{left:0;border-left-color:var(--acc)}
 .guide::after{right:0;border-right-color:var(--acc)}
-.fade-top,.fade-bot{position:absolute;left:0;right:0;pointer-events:none}
-.fade-top{top:0;height:22%;background:linear-gradient(#000,transparent)}
-.fade-bot{bottom:0;height:22%;background:linear-gradient(transparent,#000)}
 
-.ui{transition:opacity .45s ease, transform .45s ease}
-#prompter.playing .ui{opacity:0;pointer-events:none}
+.ui{transition:opacity .35s ease, transform .35s ease, visibility 0s linear 0s}
+#prompter.playing .ui{opacity:0;pointer-events:none;visibility:hidden;transition:opacity .35s ease, transform .35s ease, visibility 0s linear .35s}
 #prompter.playing .bar{transform:translateY(30px)}
 #prompter.playing .hud{transform:translateY(-20px)}
 
 .hud{position:absolute;top:calc(12px + var(--safe-t));left:12px;right:12px;display:flex;justify-content:space-between;align-items:center}
-.pill{background:rgba(22,22,24,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+.pill{background:#161618;
   border:1px solid var(--line);border-radius:999px;padding:10px 16px;font-weight:600;font-size:15px}
 .progress{position:absolute;top:0;left:0;height:3px;background:var(--acc);width:0}
 
 .bar{position:absolute;left:10px;right:10px;bottom:calc(12px + var(--safe-b));
-  background:rgba(22,22,24,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:#161618;
   border:1px solid var(--line);border-radius:30px;padding:12px;display:flex;flex-direction:column;gap:10px}
 .ctrl{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .grp{display:flex;align-items:center;gap:2px;background:#0f0f11;border-radius:999px;padding:4px}
@@ -149,10 +146,10 @@ body.land #editor .big{font-size:26px}
 </section>
 
 <!-- PROMPTER -->
+<div id="probe" style="position:fixed;top:0;left:0;width:100vw;height:100vh;visibility:hidden;pointer-events:none"></div>
 <section id="prompter" class="hidden">
   <div id="scroller"><div id="text"></div></div>
-  <div class="fade-top"></div><div class="fade-bot"></div>
-  <div class="guide" id="guide"></div>
+    <div class="guide" id="guide"></div>
   <div class="progress ui" id="prog"></div>
 
   <div class="hud ui">
@@ -282,10 +279,12 @@ body.land #editor .big{font-size:26px}
   const H = () => prompter.clientHeight || innerHeight;
   const pos = e => rotated ? -e.clientX : e.clientY;
   function layout() {
-    const portrait = innerHeight > innerWidth;
+    const pr = $('probe');
+    const W = Math.max(innerWidth, pr.offsetWidth), Hs = Math.max(innerHeight, pr.offsetHeight);
+    const portrait = Hs > W;
     rotated = s.land && portrait;
     prompter.classList.toggle('rot', rotated);
-    if (rotated) Object.assign(prompter.style, { width: innerHeight + 'px', height: innerWidth + 'px', left: innerWidth + 'px' });
+    if (rotated) Object.assign(prompter.style, { width: Hs + 'px', height: W + 'px', left: W + 'px' });
     else Object.assign(prompter.style, { width: '', height: '', left: '' });
     prompter.style.setProperty('--H', H() + 'px');
     prompter.classList.toggle('wide', prompter.clientWidth > 600);
@@ -389,6 +388,7 @@ body.land #editor .big{font-size:26px}
     ta.blur(); s.text = ta.value; refresh();
     text.textContent = s.text || ' ';
     editor.classList.add('hidden'); prompter.classList.remove('hidden');
+    document.documentElement.style.background = document.body.style.background = '#000';
     goLandscape(); layout();
     y = 0; requestAnimationFrame(() => { paint(); play(); });
   };
@@ -396,6 +396,7 @@ body.land #editor .big{font-size:26px}
     pause(); clearInterval(countIv); counting = false; $('count').classList.add('hidden');
     try { wake && wake.release(); } catch {} wake = null;
     prompter.classList.add('hidden'); editor.classList.remove('hidden');
+    document.documentElement.style.background = document.body.style.background = '';
     try { screen.orientation.unlock(); } catch {}
     try { document.fullscreenElement && document.exitFullscreen(); } catch {}
   }
