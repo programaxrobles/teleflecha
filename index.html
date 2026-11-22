@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0b0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Teleflecha">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="icon" href="icon-192.png">
+<title>Teleflecha</title>
+<style>
+:root{
+  --bg:#0b0b0c; --panel:#161618; --line:#2a2a2e; --ink:#f4f4f0; --mute:#8b8b90;
+  --acc:#2f6bff; --acc-ink:#ffffff; --danger:#ff4d6d;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+.hidden{display:none!important}
+
+/* ---------- EDITOR ---------- */
+#editor{min-height:100%;display:flex;flex-direction:column;padding:calc(18px + var(--safe-t)) 16px calc(16px + var(--safe-b));gap:14px}
+.top{display:flex;align-items:center;justify-content:space-between}
+.brand{font-weight:800;font-size:24px;letter-spacing:-.03em;display:flex;align-items:center;gap:10px}
+.brand .logo{width:34px;height:34px;filter:drop-shadow(0 4px 14px rgba(47,107,255,.55))}
+.stats{display:flex;gap:6px}
+.stat{white-space:nowrap;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;color:var(--mute)}
+.stat b{color:var(--ink);font-weight:700}
+textarea{flex:1;min-height:240px;width:100%;resize:none;background:var(--panel);color:var(--ink);
+  border:1px solid var(--line);border-radius:24px;padding:18px;font:inherit;font-size:18px;line-height:1.5;outline:none}
+textarea:focus{border-color:var(--acc)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lbl{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.big{font-size:34px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.stepper{display:flex;align-items:center;gap:8px}
+.circ{width:46px;height:46px;border-radius:50%;background:#232326;display:grid;place-items:center;font-size:22px;font-weight:700}
+.circ:active{transform:scale(.92)}
+.toggle{padding:10px 16px;border-radius:999px;background:#232326;font-weight:600;font-size:15px}
+.toggles{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.toggles .toggle{padding:10px 4px;font-size:13px}
+.toggle.on{background:var(--acc);color:var(--acc-ink)}
+.go{display:flex;align-items:center;justify-content:space-between;background:var(--acc);color:var(--acc-ink);
+  border-radius:999px;padding:8px 8px 8px 26px;font-size:20px;font-weight:800;letter-spacing:-.01em}
+.go span.arrow{width:52px;height:52px;border-radius:50%;background:var(--acc-ink);color:var(--acc);display:grid;place-items:center}
+.go:active{transform:scale(.98)}
+
+/* ---------- PROMPTER ---------- */
+#prompter{position:fixed;inset:0;background:#000;overflow:hidden;touch-action:none;--H:100vh}
+#prompter.rot{inset:auto;top:0;transform-origin:0 0;transform:rotate(90deg)}
+#prompter.rot .hud{top:12px;left:calc(12px + var(--safe-t));right:calc(12px + var(--safe-t))}
+#prompter.rot .bar{bottom:10px}
+#scroller{position:absolute;inset:0;will-change:transform}
+#text{padding:calc(var(--H) * .38 - .9em) 6% var(--H);font-weight:700;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;color:#fff}
+#prompter.mirror #scroller{transform-origin:center}
+#prompter.mirror #text{transform:scaleX(-1)}
+.guide{position:absolute;left:0;right:0;top:38%;height:0;pointer-events:none;border-top:2px solid rgba(47,107,255,.7)}
+.guide::before,.guide::after{content:"";position:absolute;top:-9px;border:8px solid transparent}
+.guide::before{left:0;border-left-color:var(--acc)}
+.guide::after{right:0;border-right-color:var(--acc)}
+.fade-top,.fade-bot{position:absolute;left:0;right:0;pointer-events:none}
+.fade-top{top:0;height:22%;background:linear-gradient(#000,transparent)}
+.fade-bot{bottom:0;height:22%;background:linear-gradient(transparent,#000)}
+
+.ui{transition:opacity .45s ease, transform .45s ease}
+#prompter.playing .ui{opacity:0;pointer-events:none}
+#prompter.playing .bar{transform:translateY(30px)}
+#prompter.playing .hud{transform:translateY(-20px)}
+
+.hud{position:absolute;top:calc(12px + var(--safe-t));left:12px;right:12px;display:flex;justify-content:space-between;align-items:center}
+.pill{background:rgba(22,22,24,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--line);border-radius:999px;padding:10px 16px;font-weight:600;font-size:15px}
+.progress{position:absolute;top:0;left:0;height:3px;background:var(--acc);width:0}
+
+.bar{position:absolute;left:10px;right:10px;bottom:calc(12px + var(--safe-b));
+  background:rgba(22,22,24,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid var(--line);border-radius:30px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.ctrl{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.grp{display:flex;align-items:center;gap:2px;background:#0f0f11;border-radius:999px;padding:4px}
+.grp .circ{width:38px;height:38px;font-size:16px}
+.grp .val{min-width:36px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;font-size:16px}
+.grp .val small{display:block;font-size:9px;color:var(--mute);font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+.play{width:62px;height:62px;border-radius:50%;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center;flex:none}
+.play:active{transform:scale(.93)}
+.small{display:flex;gap:6px;justify-content:space-between}
+.small button{flex:1;padding:10px 6px;border-radius:999px;background:#0f0f11;font-size:13px;font-weight:600;color:var(--mute)}
+#prompter.wide .bar{flex-direction:row;align-items:center;left:50%;right:auto;transform:translateX(-50%);width:min(760px,calc(100% - 20px))}
+#prompter.wide.playing .bar{transform:translate(-50%,30px)}
+#prompter.wide .ctrl{flex:none;gap:8px}
+#prompter.wide .small{flex:1;flex-wrap:wrap}
+#prompter.wide .small button{flex:1 1 40%}
+.small button.on{color:var(--acc-ink);background:var(--acc)}
+
+#count{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--H) * .55);font-weight:900;color:var(--acc);
+  pointer-events:none;letter-spacing:-.05em}
+.tap-hint{position:absolute;bottom:calc(18px + var(--safe-b));left:0;right:0;text-align:center;color:rgba(255,255,255,.25);
+  font-size:12px;pointer-events:none;transition:opacity .4s}
+#prompter:not(.playing) .tap-hint{opacity:0}
+svg{display:block}
+@media (orientation:landscape) and (max-height:560px){
+  #editor{display:grid;grid-template-columns:1.4fr 1fr;grid-template-rows:auto 1fr auto;padding-left:calc(16px + env(safe-area-inset-left,0px));padding-right:calc(16px + env(safe-area-inset-right,0px))}
+  #editor .top{grid-column:1/3}
+  #editor textarea{grid-row:2/4;min-height:0}
+  #editor .card{padding:10px 14px;gap:8px}
+  #editor .big{font-size:26px}
+}
+</style>
+</head>
+<body>
+
+<!-- EDITOR -->
+<section id="editor">
+  <div class="top">
+    <div class="brand"><svg class="logo" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#1F4FE0"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#lg)"/><g fill="#fff"><rect x="41" y="18" width="18" height="9" rx="4.5"/><rect x="32" y="32" width="36" height="9" rx="4.5"/><rect x="23" y="46" width="54" height="9" rx="4.5"/><rect x="41" y="60" width="18" height="9" rx="4.5" opacity=".7"/><rect x="41" y="74" width="18" height="9" rx="4.5" opacity=".4"/></g></svg>Teleflecha</div>
+    <div class="stats"><div class="stat"><b id="words">0</b> pal.</div><div class="stat">≈ <b id="mins">0:00</b></div></div>
+  </div>
+
+  <textarea id="script" placeholder="Pega o escribe aquí tu guion…"></textarea>
+
+  <div class="card">
+    <div class="row">
+      <div><div class="lbl">Tamaño del texto</div><div class="big" id="eSize">48</div></div>
+      <div class="stepper"><button class="circ" data-act="size-">A−</button><button class="circ" data-act="size+">A+</button></div>
+    </div>
+    <div class="row">
+      <div><div class="lbl">Velocidad</div><div class="big" id="eSpeed">5</div></div>
+      <div class="stepper"><button class="circ" data-act="speed-">−</button><button class="circ" data-act="speed+">+</button></div>
+    </div>
+    <div class="toggles">
+      <button class="toggle" id="tMirror">Espejo</button>
+      <button class="toggle" id="tCount">3·2·1</button>
+      <button class="toggle" id="tGuide">Guía</button>
+      <button class="toggle" id="tLand">Horizontal</button>
+    </div>
+  </div>
+
+  <button class="go" id="start">Empezar <span class="arrow">
+    <svg width="22" height="22" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg></span></button>
+</section>
+
+<!-- PROMPTER -->
+<section id="prompter" class="hidden">
+  <div id="scroller"><div id="text"></div></div>
+  <div class="fade-top"></div><div class="fade-bot"></div>
+  <div class="guide" id="guide"></div>
+  <div class="progress ui" id="prog"></div>
+
+  <div class="hud ui">
+    <button class="pill" id="close">✕ Salir</button>
+    <div class="pill" id="left">0:00</div>
+  </div>
+
+  <div class="bar ui" id="bar">
+    <div class="ctrl">
+      <div class="grp">
+        <button class="circ" data-act="size-">A−</button>
+        <div class="val"><span id="pSize">48</span><small>Tamaño</small></div>
+        <button class="circ" data-act="size+">A+</button>
+      </div>
+      <button class="play" id="play" aria-label="Reproducir">
+        <svg width="28" height="28" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg>
+      </button>
+      <div class="grp">
+        <button class="circ" data-act="speed-">−</button>
+        <div class="val"><span id="pSpeed">5</span><small>Veloc.</small></div>
+        <button class="circ" data-act="speed+">+</button>
+      </div>
+    </div>
+    <div class="small">
+      <button id="rew">↺ Inicio</button>
+      <button id="back">⟲ −5 s</button>
+      <button id="pMirror">Espejo</button>
+      <button id="pGuide">Guía</button>
+    </div>
+  </div>
+
+  <div id="count" class="hidden"></div>
+  <div class="tap-hint">Toca la pantalla para pausar</div>
+</section>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const KEY = 'teleflecha.v1';
+  const DEFAULT_TEXT = 'Hola. Este es tu teleprompter.\n\nEscribe o pega tu guion en la pantalla anterior, ajusta el tamaño y la velocidad, y pulsa Empezar.\n\nCuando el texto se mueva, los botones desaparecen. Toca la pantalla para pausar y que vuelvan a aparecer.\n\nCon la pausa puedes arrastrar el texto con el dedo para colocarte donde quieras.';
+
+  const s = Object.assign({ text: DEFAULT_TEXT, size: 48, speed: 5, mirror: false, countdown: true, guide: true, land: true },
+    (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })());
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} };
+
+  const ta = $('script'), prompter = $('prompter'), editor = $('editor'), scroller = $('scroller'), text = $('text');
+  ta.value = s.text;
+
+  // ---- velocidad: nivel 1..20 → píxeles por segundo (escala con el tamaño de letra)
+  const pxPerSec = () => s.speed * 14 * (s.size / 48);
+
+  function refresh() {
+    $('eSize').textContent = $('pSize').textContent = s.size;
+    $('eSpeed').textContent = $('pSpeed').textContent = s.speed;
+    $('tMirror').classList.toggle('on', s.mirror); $('pMirror').classList.toggle('on', s.mirror);
+    $('tCount').classList.toggle('on', s.countdown);
+    $('tLand').classList.toggle('on', s.land);
+    $('tGuide').classList.toggle('on', s.guide); $('pGuide').classList.toggle('on', s.guide);
+    prompter.classList.toggle('mirror', s.mirror);
+    $('guide').classList.toggle('hidden', !s.guide);
+    text.style.fontSize = s.size + 'px';
+    const w = (s.text.trim().match(/\S+/g) || []).length;
+    $('words').textContent = w;
+    $('mins').textContent = fmt(w / 150 * 60);
+    save();
+  }
+  const fmt = sec => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+
+  ta.addEventListener('input', () => { s.text = ta.value; refresh(); });
+
+  // ---- acciones compartidas (tamaño / velocidad)
+  function act(a) {
+    const before = maxY() ? y / maxY() : 0;
+    if (a === 'size+') s.size = Math.min(140, s.size + 4);
+    if (a === 'size-') s.size = Math.max(20, s.size - 4);
+    if (a === 'speed+') s.speed = Math.min(20, s.speed + 1);
+    if (a === 'speed-') s.speed = Math.max(1, s.speed - 1);
+    refresh();
+    if (a.startsWith('size') && !prompter.classList.contains('hidden')) { y = before * maxY(); paint(); }
+    poke();
+  }
+  document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); act(b.dataset.act); }));
+
+  // repetir mientras se mantiene pulsado
+  document.querySelectorAll('[data-act]').forEach(b => {
+    let t1, t2;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); };
+    b.addEventListener('pointerdown', () => { t1 = setTimeout(() => { t2 = setInterval(() => act(b.dataset.act), 110); }, 450); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
+  });
+
+  $('tMirror').onclick = $('pMirror').onclick = e => { e.stopPropagation(); s.mirror = !s.mirror; refresh(); };
+  $('tGuide').onclick = $('pGuide').onclick = e => { e.stopPropagation(); s.guide = !s.guide; refresh(); };
+  $('tCount').onclick = () => { s.countdown = !s.countdown; refresh(); };
+  $('tLand').onclick = () => { s.land = !s.land; refresh(); };
+
+  // ---- orientación: horizontal siempre. Si el móvil está en vertical, giramos la vista 90°.
+  let rotated = false;
+  const H = () => prompter.clientHeight || innerHeight;
+  const pos = e => rotated ? -e.clientX : e.clientY;
+  function layout() {
+    const portrait = innerHeight > innerWidth;
+    rotated = s.land && portrait;
+    prompter.classList.toggle('rot', rotated);
+    if (rotated) Object.assign(prompter.style, { width: innerHeight + 'px', height: innerWidth + 'px', left: innerWidth + 'px' });
+    else Object.assign(prompter.style, { width: '', height: '', left: '' });
+    prompter.style.setProperty('--H', H() + 'px');
+    prompter.classList.toggle('wide', prompter.clientWidth > 600);
+  }
+  function relayout() {
+    if (prompter.classList.contains('hidden')) return;
+    const f = maxY() ? y / maxY() : 0;
+    layout(); y = f * maxY(); paint();
+  }
+  async function goLandscape() {
+    if (!s.land) return;
+    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch {}
+    try { await screen.orientation.lock('landscape'); } catch {}
+  }
+
+  // ---- motor de scroll
+  let y = 0, playing = false, last = 0, raf = 0, wake = null, counting = false, countIv = 0;
+  const maxY = () => Math.max(0, text.offsetHeight - H() * 1.38);
+  function paint() {
+    scroller.style.transform = `translate3d(0,${-y}px,0)`;
+    const m = maxY();
+    $('prog').style.width = (m ? y / m * 100 : 0) + '%';
+    $('left').textContent = '−' + fmt((m - y) / pxPerSec());
+  }
+  function tick(t) {
+    if (!playing) return;
+    const dt = Math.min(0.1, (t - last) / 1000); last = t;
+    y += pxPerSec() * dt;
+    if (y >= maxY()) { y = maxY(); paint(); pause(); return; }
+    paint();
+    raf = requestAnimationFrame(tick);
+  }
+  async function lockScreen() {
+    try { if ('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); } catch {}
+  }
+  function play() {
+    if (playing || counting) return;
+    if (y >= maxY()) y = 0;
+    const go = () => {
+      playing = true; prompter.classList.add('playing');
+      last = performance.now(); raf = requestAnimationFrame(tick);
+    };
+    lockScreen();
+    if (s.countdown) {
+      counting = true; prompter.classList.add('playing');
+      const c = $('count'); c.classList.remove('hidden');
+      let n = 3; c.textContent = n;
+      countIv = setInterval(() => {
+        n--;
+        if (n === 0) { clearInterval(countIv); c.classList.add('hidden'); counting = false; go(); }
+        else c.textContent = n;
+      }, 800);
+    } else go();
+    setPlayIcon(true);
+  }
+  function pause() {
+    playing = false; cancelAnimationFrame(raf);
+    prompter.classList.remove('playing');
+    setPlayIcon(false);
+  }
+  function setPlayIcon(p) {
+    $('play').innerHTML = p
+      ? '<svg width="26" height="26" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="currentColor"/></svg>'
+      : '<svg width="28" height="28" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></svg>';
+  }
+  const poke = () => {};
+
+  $('play').onclick = e => { e.stopPropagation(); playing ? pause() : play(); };
+  $('rew').onclick = e => { e.stopPropagation(); y = 0; paint(); };
+  $('back').onclick = e => { e.stopPropagation(); y = Math.max(0, y - pxPerSec() * 5); paint(); };
+  $('bar').addEventListener('pointerdown', e => e.stopPropagation());
+
+  // ---- tocar para pausar / arrastrar para mover
+  let drag = null;
+  prompter.addEventListener('pointerdown', e => {
+    if (e.target.closest('.hud') ) return;
+    if (playing || counting) { if (!counting) pause(); return; }
+    drag = { sy: pos(e), y0: y, moved: false };
+  });
+  prompter.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const d = pos(e) - drag.sy;
+    if (Math.abs(d) > 6) drag.moved = true;
+    y = Math.min(maxY(), Math.max(0, drag.y0 - d)); paint();
+  });
+  prompter.addEventListener('pointerup', () => { drag = null; });
+  prompter.addEventListener('pointercancel', () => { drag = null; });
+  prompter.addEventListener('wheel', e => { if (!playing) { y = Math.min(maxY(), Math.max(0, y + e.deltaY)); paint(); } }, { passive: true });
+
+  // teclado / mando bluetooth (las teclas de volumen no son accesibles desde web)
+  addEventListener('keydown', e => {
+    if (prompter.classList.contains('hidden')) return;
+    if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); playing ? pause() : play(); }
+    if (e.key === 'ArrowUp') act('speed+');
+    if (e.key === 'ArrowDown') act('speed-');
+    if (e.key === 'Escape') close();
+  });
+
+  // ---- abrir / cerrar
+  $('start').onclick = () => {
+    s.text = ta.value; refresh();
+    text.textContent = s.text || ' ';
+    editor.classList.add('hidden'); prompter.classList.remove('hidden');
+    goLandscape(); layout();
+    y = 0; requestAnimationFrame(() => { paint(); play(); });
+  };
+  function close() {
+    pause(); clearInterval(countIv); counting = false; $('count').classList.add('hidden');
+    try { wake && wake.release(); } catch {} wake = null;
+    prompter.classList.add('hidden'); editor.classList.remove('hidden');
+    try { screen.orientation.unlock(); } catch {}
+    try { document.fullscreenElement && document.exitFullscreen(); } catch {}
+  }
+  $('close').onclick = e => { e.stopPropagation(); close(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden && playing) pause(); });
+  addEventListener('resize', relayout);
+  addEventListener('orientationchange', () => setTimeout(relayout, 250));
+
+  refresh();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
