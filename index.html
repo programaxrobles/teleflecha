@@ -59,12 +59,15 @@ textarea:focus{border-color:var(--acc)}
 /* ---------- PROMPTER ---------- */
 #prompter{position:fixed;inset:0;background:#000;overflow:hidden;touch-action:none;--H:100vh}
 #prompter.rot{inset:auto;top:0;transform-origin:0 0;transform:rotate(90deg)}
-#prompter.rot .hud{top:12px;left:calc(12px + var(--safe-t));right:calc(12px + var(--safe-t))}
+#prompter.rot .hud{top:12px;left:calc(12px + var(--safe-t));right:calc(12px + var(--safe-b))}
 #prompter.rot .bar{bottom:10px}
 #scroller{position:absolute;inset:0;will-change:transform}
 #text{padding:calc(var(--H) * .38 - .9em) 6% var(--H);font-weight:700;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;color:#fff}
 #prompter.mirror #scroller{transform-origin:center}
 #prompter.mirror #text{transform:scaleX(-1)}
+/* apartar el texto de las zonas que el iPhone difumina (barra de estado arriba, barra de inicio abajo) */
+#prompter #text{padding-left:max(6%, calc(env(safe-area-inset-left,0px) + 20px));padding-right:max(6%, calc(env(safe-area-inset-right,0px) + 20px))}
+#prompter.rot #text{padding-left:calc(max(var(--safe-t), var(--safe-b)) + 32px);padding-right:calc(max(var(--safe-t), var(--safe-b)) + 32px)}
 .guide{position:absolute;left:0;right:0;top:38%;height:0;pointer-events:none;border-top:2px solid rgba(47,107,255,.7)}
 .guide::before,.guide::after{content:"";position:absolute;top:-9px;border:8px solid transparent}
 .guide::before{left:0;border-left-color:var(--acc)}
